@@ -5,6 +5,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { UserModule } from './user/user.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { DatabaseModule } from './database/database.module';
         limit: 100,
       },
     ]),
+    UserModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [

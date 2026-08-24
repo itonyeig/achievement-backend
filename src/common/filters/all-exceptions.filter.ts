@@ -16,7 +16,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
-    const request = context.getRequest<Request>();
     const response = context.getResponse<Response>();
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -57,8 +56,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode,
       error,
       message,
-      timestamp: new Date().toISOString(),
-      path: request.originalUrl,
     });
   }
 
