@@ -42,7 +42,10 @@ export class UserService {
   }
 
   async findById(userId: Types.ObjectId | string): Promise<UserDocument> {
-    const user = await this.userModel.findById(userId).exec();
+    const user = await this.userModel
+      .findById(userId)
+      .select('+recipientCode')
+      .exec();
 
     if (!user) {
       throw new NotFoundException('User not found');

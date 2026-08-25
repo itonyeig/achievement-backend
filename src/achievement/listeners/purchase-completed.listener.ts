@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EventName } from '../../common/enums/event-name.enum';
-import { PurchaseCompletedEvent } from '../../purchase/events/purchase-completed.event';
+import type { PurchaseCompletedEvent } from '../../purchase/events/purchase-completed.event';
 import { AchievementService } from '../achievement.service';
 
 @Injectable()

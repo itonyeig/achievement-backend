@@ -12,6 +12,8 @@ export const PURCHASE_ACHIEVEMENTS = [
     name: '5 Purchases',
     threshold: 5,
   },
+  // assessment defines only the First Purchase and 5 Purchases achievements but references a badge requiring
+  // eight achievements, purchase milestones are assumed to continue in increments of five through 35 purchases.
   {
     name: '10 Purchases',
     threshold: 10,
@@ -37,3 +39,9 @@ export const PURCHASE_ACHIEVEMENTS = [
     threshold: 35,
   },
 ] as const satisfies readonly PurchaseAchievementDefinition[];
+
+export const ACHIEVEMENT_NAMES = Object.freeze(
+  PURCHASE_ACHIEVEMENTS.map(({ name }) => name),
+);
+
+export type AchievementName = (typeof ACHIEVEMENT_NAMES)[number];

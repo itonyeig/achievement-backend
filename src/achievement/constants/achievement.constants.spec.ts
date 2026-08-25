@@ -1,4 +1,7 @@
-import { PURCHASE_ACHIEVEMENTS } from './achievement.constants';
+import {
+  ACHIEVEMENT_NAMES,
+  PURCHASE_ACHIEVEMENTS,
+} from './achievement.constants';
 
 describe('PURCHASE_ACHIEVEMENTS', () => {
   it('defines the agreed purchase milestones in ascending order', () => {
@@ -20,5 +23,12 @@ describe('PURCHASE_ACHIEVEMENTS', () => {
 
     expect(new Set(names).size).toBe(PURCHASE_ACHIEVEMENTS.length);
     expect(new Set(thresholds).size).toBe(PURCHASE_ACHIEVEMENTS.length);
+  });
+
+  it('exposes the configured names as a readonly array', () => {
+    expect(ACHIEVEMENT_NAMES).toEqual(
+      PURCHASE_ACHIEVEMENTS.map(({ name }) => name),
+    );
+    expect(Object.isFrozen(ACHIEVEMENT_NAMES)).toBe(true);
   });
 });

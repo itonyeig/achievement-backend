@@ -15,7 +15,7 @@ import { EventName } from '../src/common/enums/event-name.enum';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { ResponseFormatterInterceptor } from '../src/common/interceptors/response-formatter.interceptor';
 import { ProductService } from '../src/product/product.service';
-import { PurchaseCompletedEvent } from '../src/purchase/events/purchase-completed.event';
+import type { PurchaseCompletedEvent } from '../src/purchase/events/purchase-completed.event';
 import { PurchaseController } from '../src/purchase/purchase.controller';
 import { PurchaseService } from '../src/purchase/purchase.service';
 import { Purchase } from '../src/purchase/schema/purchase.schema';
@@ -132,8 +132,7 @@ describe('PurchaseCompleted event (e2e)', () => {
       });
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(receivedEvent).toBeInstanceOf(PurchaseCompletedEvent);
-    expect(receivedEvent?.userId).toBe(userObjectId);
+    expect(receivedEvent).toEqual({ userId: userObjectId });
     expect(Object.keys(receivedEvent ?? {})).toEqual(['userId']);
     expect(purchaseModel.create.mock.invocationCallOrder[0]).toBeLessThan(
       listener.mock.invocationCallOrder[0],

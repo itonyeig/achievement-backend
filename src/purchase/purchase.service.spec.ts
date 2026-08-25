@@ -6,7 +6,7 @@ import { Types } from 'mongoose';
 import { EventName } from '../common/enums/event-name.enum';
 import { ProductService } from '../product/product.service';
 import { UserService } from '../user/user.service';
-import { PurchaseCompletedEvent } from './events/purchase-completed.event';
+import type { PurchaseCompletedEvent } from './events/purchase-completed.event';
 import { Purchase } from './schema/purchase.schema';
 import { PurchaseService } from './purchase.service';
 
@@ -102,10 +102,10 @@ describe('PurchaseService', () => {
     expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
     expect(eventEmitter.emit).toHaveBeenCalledWith(
       EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(userId),
+      { userId },
     );
 
-    expect(emittedEvent).toBeInstanceOf(PurchaseCompletedEvent);
+    expect(emittedEvent).toEqual({ userId });
     expect(Object.keys(emittedEvent ?? {})).toEqual(['userId']);
     expect(purchaseModel.create.mock.invocationCallOrder[0]).toBeLessThan(
       eventEmitter.emit.mock.invocationCallOrder[0],

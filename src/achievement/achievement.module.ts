@@ -18,5 +18,6 @@ import {
     UserModule,
   ],
   providers: [AchievementService, PurchaseCompletedListener],
+  exports: [AchievementService],
 })
 export class AchievementModule {}

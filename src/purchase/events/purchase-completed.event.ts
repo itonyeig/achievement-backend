@@ -1,5 +1,5 @@
-import { Types } from 'mongoose';
+import type { Types } from 'mongoose';
 
-export class PurchaseCompletedEvent {
-  constructor(public readonly userId: string | Types.ObjectId) {}
-}
+export type PurchaseCompletedEvent = Readonly<{
+  userId: string | Types.ObjectId;
+}>;

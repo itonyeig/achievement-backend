@@ -5,6 +5,10 @@ import {
   type HydratedDocument,
 } from 'mongoose';
 import { User } from '../../user/schema/user.schema';
+import {
+  ACHIEVEMENT_NAMES,
+  type AchievementName,
+} from '../constants/achievement.constants';
 
 export type UserAchievementDocument = HydratedDocument<UserAchievement>;
 
@@ -19,8 +23,8 @@ export class UserAchievement {
   })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, trim: true })
-  achievementName: string;
+  @Prop({ type: String, required: true, trim: true, enum: ACHIEVEMENT_NAMES })
+  achievementName: AchievementName;
 
   @Prop({ required: true, default: Date.now })
   unlockedAt: Date;

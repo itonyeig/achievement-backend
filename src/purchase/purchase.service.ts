@@ -6,7 +6,7 @@ import { EventName } from '../common/enums/event-name.enum';
 import { ProductService } from '../product/product.service';
 import { UserService } from '../user/user.service';
 import type { CreatePurchaseParamsDto } from './dto/create-purchase-params.dto';
-import { PurchaseCompletedEvent } from './events/purchase-completed.event';
+import type { PurchaseCompletedEvent } from './events/purchase-completed.event';
 import type { PurchaseResponse } from './interfaces/purchase.interface';
 import { Purchase } from './schema/purchase.schema';
 
@@ -32,10 +32,9 @@ export class PurchaseService {
       totalAmount: product.price,
     });
 
-    this.eventEmitter.emit(
-      EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(purchase.userId),
-    );
+    this.eventEmitter.emit(EventName.PurchaseCompleted, {
+      userId: purchase.userId,
+    } satisfies PurchaseCompletedEvent);
 
     return purchase;
   }

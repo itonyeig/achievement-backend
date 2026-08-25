@@ -1,3 +1,4 @@
+import { ACHIEVEMENT_NAMES } from '../constants/achievement.constants';
 import { UserAchievementSchema } from './user-achievement.schema';
 
 describe('UserAchievementSchema', () => {
@@ -5,6 +6,9 @@ describe('UserAchievementSchema', () => {
     expect(UserAchievementSchema.path('userId').options.required).toBe(true);
     expect(UserAchievementSchema.path('achievementName').options.required).toBe(
       true,
+    );
+    expect(UserAchievementSchema.path('achievementName').options.enum).toEqual(
+      ACHIEVEMENT_NAMES,
     );
     expect(UserAchievementSchema.path('unlockedAt').options.required).toBe(
       true,

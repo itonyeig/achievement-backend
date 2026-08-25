@@ -1,5 +1,4 @@
 import { Types } from 'mongoose';
-import { PurchaseCompletedEvent } from '../../purchase/events/purchase-completed.event';
 import { AchievementService } from '../achievement.service';
 import { PurchaseCompletedListener } from './purchase-completed.listener';
 
@@ -23,7 +22,7 @@ describe('PurchaseCompletedListener', () => {
   ])(
     'evaluates achievements for the completed purchase user',
     async (userId) => {
-      await listener.handle(new PurchaseCompletedEvent(userId));
+      await listener.handle({ userId });
 
       expect(
         achievementService.evaluatePurchaseAchievements,
@@ -39,7 +38,7 @@ describe('PurchaseCompletedListener', () => {
     achievementService.evaluatePurchaseAchievements.mockRejectedValue(error);
 
     await expect(
-      listener.handle(new PurchaseCompletedEvent('66c740862c2cb219f9b9ef11')),
+      listener.handle({ userId: '66c740862c2cb219f9b9ef11' }),
     ).rejects.toBe(error);
   });
 });

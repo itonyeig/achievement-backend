@@ -4,11 +4,10 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { AchievementService } from '../src/achievement/achievement.service';
-import { AchievementUnlockedEvent } from '../src/achievement/events/achievement-unlocked.event';
+import type { AchievementUnlockedEvent } from '../src/achievement/events/achievement-unlocked.event';
 import { PurchaseCompletedListener } from '../src/achievement/listeners/purchase-completed.listener';
 import { UserAchievement } from '../src/achievement/schema/user-achievement.schema';
 import { EventName } from '../src/common/enums/event-name.enum';
-import { PurchaseCompletedEvent } from '../src/purchase/events/purchase-completed.event';
 import { PurchaseService } from '../src/purchase/purchase.service';
 import type { UserDocument } from '../src/user/schema/user.schema';
 import { UserService } from '../src/user/user.service';
@@ -33,7 +32,8 @@ describe('Achievement events (e2e)', () => {
     findById: jest.fn(),
   };
   const userAchievementModel = {
-    bulkWrite: jest.fn(),
+    updateOne: jest.fn(),
+    countDocuments: jest.fn(),
   };
   const achievementUnlockedListener = jest.fn<
     (event: AchievementUnlockedEvent) => void
@@ -74,7 +74,7 @@ describe('Achievement events (e2e)', () => {
     receivedEvents = [];
     purchaseService.countByUserId.mockResolvedValue(1);
     userService.findById.mockResolvedValue(user);
-    userAchievementModel.bulkWrite.mockResolvedValue({ upsertedIds: {} });
+    userAchievementModel.updateOne.mockResolvedValue({ upsertedCount: 0 });
   });
 
   afterAll(async () => {
@@ -86,22 +86,18 @@ describe('Achievement events (e2e)', () => {
   });
 
   it('unlocks and emits First Purchase after a first purchase event', async () => {
-    userAchievementModel.bulkWrite.mockResolvedValue({
-      upsertedIds: { 0: new Types.ObjectId() },
-    });
+    userAchievementModel.updateOne.mockResolvedValue({ upsertedCount: 1 });
 
-    await eventEmitter.emitAsync(
-      EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(userId),
-    );
+    await eventEmitter.emitAsync(EventName.PurchaseCompleted, { userId });
 
     expect(purchaseService.countByUserId).toHaveBeenCalledWith(userId);
     expect(userService.findById).toHaveBeenCalledWith(userId);
-    expect(userAchievementModel.bulkWrite).toHaveBeenCalledTimes(1);
+    expect(userAchievementModel.updateOne).toHaveBeenCalledTimes(1);
     expect(achievementUnlockedListener).toHaveBeenCalledTimes(1);
-    expect(achievementUnlockedListener).toHaveBeenCalledWith(
-      new AchievementUnlockedEvent('First Purchase', user),
-    );
+    expect(achievementUnlockedListener).toHaveBeenCalledWith({
+      achievement_name: 'First Purchase',
+      user,
+    });
 
     const [event] = receivedEvents;
 
@@ -115,43 +111,31 @@ describe('Achievement events (e2e)', () => {
 
   it('emits only 5 Purchases when First Purchase already exists', async () => {
     purchaseService.countByUserId.mockResolvedValue(5);
-    userAchievementModel.bulkWrite.mockResolvedValue({
-      upsertedIds: { 1: new Types.ObjectId() },
-    });
+    userAchievementModel.updateOne.mockResolvedValue({ upsertedCount: 1 });
 
-    await eventEmitter.emitAsync(
-      EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(userId),
-    );
+    await eventEmitter.emitAsync(EventName.PurchaseCompleted, { userId });
 
     expect(achievementUnlockedListener).toHaveBeenCalledTimes(1);
-    expect(achievementUnlockedListener).toHaveBeenCalledWith(
-      new AchievementUnlockedEvent('5 Purchases', user),
-    );
+    expect(achievementUnlockedListener).toHaveBeenCalledWith({
+      achievement_name: '5 Purchases',
+      user,
+    });
   });
 
-  it('does not emit when all eligible achievements already exist', async () => {
-    purchaseService.countByUserId.mockResolvedValue(35);
+  it('does not emit when the exact achievement already exists', async () => {
+    await eventEmitter.emitAsync(EventName.PurchaseCompleted, { userId });
 
-    await eventEmitter.emitAsync(
-      EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(userId),
-    );
-
-    expect(userAchievementModel.bulkWrite).toHaveBeenCalledTimes(1);
+    expect(userAchievementModel.updateOne).toHaveBeenCalledTimes(1);
     expect(achievementUnlockedListener).not.toHaveBeenCalled();
   });
 
-  it('does not query or persist achievements when there are no purchases', async () => {
-    purchaseService.countByUserId.mockResolvedValue(0);
+  it('does not query or persist achievements outside an exact threshold', async () => {
+    purchaseService.countByUserId.mockResolvedValue(4);
 
-    await eventEmitter.emitAsync(
-      EventName.PurchaseCompleted,
-      new PurchaseCompletedEvent(userId),
-    );
+    await eventEmitter.emitAsync(EventName.PurchaseCompleted, { userId });
 
     expect(userService.findById).not.toHaveBeenCalled();
-    expect(userAchievementModel.bulkWrite).not.toHaveBeenCalled();
+    expect(userAchievementModel.updateOne).not.toHaveBeenCalled();
     expect(achievementUnlockedListener).not.toHaveBeenCalled();
   });
 });

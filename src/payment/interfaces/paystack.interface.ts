@@ -22,3 +22,20 @@ export interface CreateTransferRecipientInput {
 export interface TransferRecipient {
   recipientCode: string;
 }
+
+export interface InitiateTransferInput {
+  amountInKobo: number;
+  recipientCode: string;
+  reference: string;
+  reason: string;
+}
+
+export interface PaystackTransfer {
+  reference: string;
+  status: string;
+  transfer_code: string;
+}
+
+export interface InitiatedTransfer {
+  providerReference: string;
+}

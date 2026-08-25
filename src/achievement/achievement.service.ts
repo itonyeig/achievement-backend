@@ -5,11 +5,8 @@ import { Model, Types } from 'mongoose';
 import { EventName } from '../common/enums/event-name.enum';
 import { PurchaseService } from '../purchase/purchase.service';
 import { UserService } from '../user/user.service';
-import {
-  PURCHASE_ACHIEVEMENTS,
-  type PurchaseAchievementDefinition,
-} from './constants/achievement.constants';
-import { AchievementUnlockedEvent } from './events/achievement-unlocked.event';
+import { PURCHASE_ACHIEVEMENTS } from './constants/achievement.constants';
+import type { AchievementUnlockedEvent } from './events/achievement-unlocked.event';
 import { UserAchievement } from './schema/user-achievement.schema';
 
 @Injectable()
@@ -26,12 +23,11 @@ export class AchievementService {
     userId: string | Types.ObjectId,
   ): Promise<void> {
     const purchaseCount = await this.purchaseService.countByUserId(userId);
-    const eligibleAchievements: readonly PurchaseAchievementDefinition[] =
-      PURCHASE_ACHIEVEMENTS.filter(
-        ({ threshold }) => threshold <= purchaseCount,
-      );
+    const achievement = PURCHASE_ACHIEVEMENTS.find(
+      ({ threshold }) => threshold === purchaseCount,
+    );
 
-    if (eligibleAchievements.length === 0) {
+    if (!achievement) {
       return;
     }
 
@@ -39,31 +35,32 @@ export class AchievementService {
     const achievementUserId =
       typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
     const unlockedAt = new Date();
-    const operations = eligibleAchievements.map((achievement) => ({
-      updateOne: {
-        filter: {
+    const result = await this.userAchievementModel.updateOne(
+      {
+        userId: achievementUserId,
+        achievementName: achievement.name,
+      },
+      {
+        $setOnInsert: {
           userId: achievementUserId,
           achievementName: achievement.name,
+          unlockedAt,
         },
-        update: {
-          $setOnInsert: {
-            userId: achievementUserId,
-            achievementName: achievement.name,
-            unlockedAt,
-          },
-        },
-        upsert: true,
       },
-    }));
-    const result = await this.userAchievementModel.bulkWrite(operations);
+      { upsert: true },
+    );
 
-    for (const operationIndex of Object.keys(result.upsertedIds)) {
-      const achievement = eligibleAchievements[Number(operationIndex)];
-
-      this.eventEmitter.emit(
-        EventName.AchievementUnlocked,
-        new AchievementUnlockedEvent(achievement.name, user),
-      );
+    if (result.upsertedCount === 1) {
+      this.eventEmitter.emit(EventName.AchievementUnlocked, {
+        achievement_name: achievement.name,
+        user,
+      } satisfies AchievementUnlockedEvent);
     }
+  }
+
+  async countUnlockedByUserId(
+    userId: string | Types.ObjectId,
+  ): Promise<number> {
+    return this.userAchievementModel.countDocuments({ userId });
   }
 }
