@@ -10,6 +10,7 @@ import {
   CASHBACK_AMOUNT_NAIRA,
 } from './constants/cashback.constants';
 import { CashbackStatus } from './enums/cashback-status.enum';
+import { PaystackEvent } from './enums/paystack-event.enum';
 import type {
   CreateTransferRecipientInput,
   InitiatedTransfer,
@@ -18,6 +19,7 @@ import type {
   PaystackResponse,
   PaystackTransfer,
   PaystackTransferRecipient,
+  PaystackWebhookEvent,
   TransferRecipient,
 } from './interfaces/paystack.interface';
 import { CashbackTransaction } from './schema/cashback-transaction.schema';
@@ -131,6 +133,36 @@ export class PaymentService {
     await this.cashbackTransactionModel.updateOne(transactionFilter, {
       $set: { providerReference },
     });
+  }
+
+  async processWebhook(event: PaystackWebhookEvent): Promise<void> {
+    let status: CashbackStatus;
+
+    switch (event.event) {
+      case PaystackEvent.TransferSuccess:
+        status = CashbackStatus.Completed;
+        break;
+      case PaystackEvent.TransferFailed:
+      case PaystackEvent.TransferReversed:
+        status = CashbackStatus.Failed;
+        break;
+      default:
+        return;
+    }
+
+    await this.cashbackTransactionModel.updateOne(
+      {
+        reference: event.data.reference,
+        amount: event.data.amount / 100,
+        status: CashbackStatus.Pending,
+      },
+      {
+        $set: {
+          status,
+          providerReference: event.data.transfer_code,
+        },
+      },
+    );
   }
 
   private handleProviderError(error: unknown, fallbackMessage: string): never {

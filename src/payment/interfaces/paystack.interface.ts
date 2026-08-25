@@ -1,3 +1,5 @@
+import type { PaystackEvent } from '../enums/paystack-event.enum';
+
 export interface PaystackResponse<T> {
   status: boolean;
   message: string;
@@ -38,4 +40,15 @@ export interface PaystackTransfer {
 
 export interface InitiatedTransfer {
   providerReference: string;
+}
+
+export interface PaystackWebhookEvent {
+  event: PaystackEvent;
+  data: PaystackTransferWebhookData;
+}
+
+export interface PaystackTransferWebhookData {
+  amount: number;
+  reference: string;
+  transfer_code: string;
 }

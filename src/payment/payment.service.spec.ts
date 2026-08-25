@@ -14,16 +14,25 @@ import {
   CASHBACK_AMOUNT_NAIRA,
 } from './constants/cashback.constants';
 import { CashbackStatus } from './enums/cashback-status.enum';
+import { PaystackEvent } from './enums/paystack-event.enum';
 import { PaymentService } from './payment.service';
 import { CashbackTransaction } from './schema/cashback-transaction.schema';
 
-type CashbackFilter = {
+type BadgeCashbackFilter = {
   userId: Types.ObjectId;
   badgeName: BadgeName;
 };
 
+type WebhookCashbackFilter = {
+  reference: string;
+  amount: number;
+  status: CashbackStatus;
+};
+
+type CashbackFilter = BadgeCashbackFilter | WebhookCashbackFilter;
+
 type CashbackUpdate = {
-  $setOnInsert?: CashbackFilter & {
+  $setOnInsert?: BadgeCashbackFilter & {
     amount: number;
     reference: string;
     status: CashbackStatus;
@@ -411,6 +420,78 @@ describe('PaymentService', () => {
       });
 
       await expect(service.sendBadgeCashback(event)).rejects.toBe(error);
+    });
+  });
+
+  describe('processWebhook', () => {
+    const data = {
+      amount: CASHBACK_AMOUNT_KOBO,
+      reference: 'cashback-reference',
+      transfer_code: 'TRF_example',
+    };
+
+    it('completes the matching pending cashback for transfer.success', async () => {
+      await service.processWebhook({
+        event: PaystackEvent.TransferSuccess,
+        data,
+      });
+
+      expect(cashbackTransactionModel.updateOne).toHaveBeenCalledTimes(1);
+      expect(cashbackTransactionModel.updateOne).toHaveBeenCalledWith(
+        {
+          reference: 'cashback-reference',
+          amount: CASHBACK_AMOUNT_NAIRA,
+          status: CashbackStatus.Pending,
+        },
+        {
+          $set: {
+            status: CashbackStatus.Completed,
+            providerReference: 'TRF_example',
+          },
+        },
+      );
+    });
+
+    it.each([PaystackEvent.TransferFailed, PaystackEvent.TransferReversed])(
+      'fails the matching pending cashback for %s',
+      async (event) => {
+        await service.processWebhook({ event, data });
+
+        expect(cashbackTransactionModel.updateOne).toHaveBeenCalledWith(
+          {
+            reference: 'cashback-reference',
+            amount: CASHBACK_AMOUNT_NAIRA,
+            status: CashbackStatus.Pending,
+          },
+          {
+            $set: {
+              status: CashbackStatus.Failed,
+              providerReference: 'TRF_example',
+            },
+          },
+        );
+      },
+    );
+
+    it('ignores unrelated Paystack events', async () => {
+      await service.processWebhook({
+        event: 'charge.success' as PaystackEvent,
+        data,
+      });
+
+      expect(cashbackTransactionModel.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('propagates cashback update failures', async () => {
+      const error = new Error('Failed to update cashback');
+      cashbackTransactionModel.updateOne.mockRejectedValue(error);
+
+      await expect(
+        service.processWebhook({
+          event: PaystackEvent.TransferSuccess,
+          data,
+        }),
+      ).rejects.toBe(error);
     });
   });
 });
