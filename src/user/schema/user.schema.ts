@@ -2,9 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import type { HydratedDocument, Types } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
-export type UserExists = {
-  _id: Types.ObjectId;
-} | null;
+export type UserExists = { _id: Types.ObjectId };
 
 @Schema({ timestamps: true })
 export class User {

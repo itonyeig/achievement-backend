@@ -31,7 +31,7 @@ describe('PurchaseCompleted event (e2e)', () => {
     },
   );
   const userService = {
-    exists: jest.fn(),
+    existsOrThrow: jest.fn(),
   };
   const productService = {
     findById: jest.fn(),
@@ -91,7 +91,7 @@ describe('PurchaseCompleted event (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     receivedEvent = undefined;
-    userService.exists.mockResolvedValue({ _id: userObjectId });
+    userService.existsOrThrow.mockResolvedValue({ _id: userObjectId });
     productService.findById.mockResolvedValue({
       _id: productObjectId,
       name: 'Wireless Mouse',
@@ -141,7 +141,9 @@ describe('PurchaseCompleted event (e2e)', () => {
   });
 
   it('does not emit when the user does not exist', async () => {
-    userService.exists.mockResolvedValue(null);
+    userService.existsOrThrow.mockRejectedValue(
+      new NotFoundException('User not found'),
+    );
 
     await request(app.getHttpServer())
       .post(`/api/v1/purchases/${productId}/${userId}`)

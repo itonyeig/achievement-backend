@@ -5,6 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AchievementModule } from './achievement/achievement.module';
 import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
 import { PaymentModule } from './payment/payment.module';
@@ -28,6 +29,7 @@ import { PurchaseModule } from './purchase/purchase.module';
     PaymentModule,
     ProductModule,
     PurchaseModule,
+    AchievementModule,
   ],
   controllers: [AppController],
   providers: [

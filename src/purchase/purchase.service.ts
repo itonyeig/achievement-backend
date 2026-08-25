@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { EventName } from '../common/enums/event-name.enum';
 import { ProductService } from '../product/product.service';
 import { UserService } from '../user/user.service';
@@ -23,12 +23,7 @@ export class PurchaseService {
   async createPurchase(
     params: CreatePurchaseParamsDto,
   ): Promise<PurchaseResponse> {
-    const userExists = await this.userService.exists(params.userId);
-
-    if (!userExists) {
-      throw new NotFoundException('User not found');
-    }
-
+    await this.userService.existsOrThrow(params.userId);
     const product = await this.productService.findById(params.productId);
 
     const purchase = await this.purchaseModel.create({
@@ -43,5 +38,9 @@ export class PurchaseService {
     );
 
     return purchase;
+  }
+
+  async countByUserId(userId: string | Types.ObjectId): Promise<number> {
+    return this.purchaseModel.countDocuments({ userId });
   }
 }

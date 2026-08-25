@@ -14,7 +14,7 @@ describe('PurchaseService', () => {
   let service: PurchaseService;
   let emittedEvent: PurchaseCompletedEvent | undefined;
   const userService = {
-    exists: jest.fn(),
+    existsOrThrow: jest.fn(),
   };
   const productService = {
     findById: jest.fn(),
@@ -69,7 +69,7 @@ describe('PurchaseService', () => {
   });
 
   it('validates the user and product before persisting the stored product price', async () => {
-    userService.exists.mockResolvedValue({ _id: params.userId });
+    userService.existsOrThrow.mockResolvedValue({ _id: params.userId });
     productService.findById.mockResolvedValue({
       _id: productId,
       name: 'Wireless Mouse',
@@ -92,7 +92,7 @@ describe('PurchaseService', () => {
       createdAt,
       updatedAt,
     });
-    expect(userService.exists).toHaveBeenCalledWith(params.userId);
+    expect(userService.existsOrThrow).toHaveBeenCalledWith(params.userId);
     expect(productService.findById).toHaveBeenCalledWith(params.productId);
     expect(purchaseModel.create).toHaveBeenCalledWith({
       userId: params.userId,
@@ -113,7 +113,7 @@ describe('PurchaseService', () => {
   });
 
   it('always calculates the total from the latest stored product price', async () => {
-    userService.exists.mockResolvedValue({ _id: params.userId });
+    userService.existsOrThrow.mockResolvedValue({ _id: params.userId });
     productService.findById.mockResolvedValue({
       _id: productId,
       price: 65000,
@@ -136,7 +136,9 @@ describe('PurchaseService', () => {
   });
 
   it('rejects a missing user without querying or persisting a product', async () => {
-    userService.exists.mockResolvedValue(null);
+    userService.existsOrThrow.mockRejectedValue(
+      new NotFoundException('User not found'),
+    );
 
     await expect(service.createPurchase(params)).rejects.toEqual(
       new NotFoundException('User not found'),
@@ -147,7 +149,7 @@ describe('PurchaseService', () => {
   });
 
   it('rejects a missing product without persisting a purchase', async () => {
-    userService.exists.mockResolvedValue({ _id: params.userId });
+    userService.existsOrThrow.mockResolvedValue({ _id: params.userId });
     productService.findById.mockRejectedValue(
       new NotFoundException('Product not found'),
     );
@@ -161,7 +163,7 @@ describe('PurchaseService', () => {
 
   it('propagates user-query failures without continuing', async () => {
     const error = new Error('Failed to query user');
-    userService.exists.mockRejectedValue(error);
+    userService.existsOrThrow.mockRejectedValue(error);
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
     expect(productService.findById).not.toHaveBeenCalled();
@@ -171,7 +173,7 @@ describe('PurchaseService', () => {
 
   it('propagates product-query failures without persisting', async () => {
     const error = new Error('Failed to query product');
-    userService.exists.mockResolvedValue({ _id: params.userId });
+    userService.existsOrThrow.mockResolvedValue({ _id: params.userId });
     productService.findById.mockRejectedValue(error);
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
@@ -181,7 +183,7 @@ describe('PurchaseService', () => {
 
   it('propagates purchase-persistence failures', async () => {
     const error = new Error('Failed to persist purchase');
-    userService.exists.mockResolvedValue({ _id: params.userId });
+    userService.existsOrThrow.mockResolvedValue({ _id: params.userId });
     productService.findById.mockResolvedValue({
       _id: productId,
       price: 12000,

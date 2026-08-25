@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentService } from '../payment/payment.service';
@@ -134,31 +135,31 @@ describe('UserService', () => {
     );
   });
 
-  describe('exists', () => {
+  describe('existsOrThrow', () => {
     it('returns the matching user identifier', async () => {
       const userId = '66c740862c2cb219f9b9ef11';
       const existingUser = { _id: userId };
       userModel.exists.mockResolvedValue(existingUser);
 
-      await expect(service.exists(userId)).resolves.toBe(existingUser);
+      await expect(service.existsOrThrow(userId)).resolves.toBe(existingUser);
       expect(userModel.exists).toHaveBeenCalledWith({ _id: userId });
     });
 
-    it('returns null when the user does not exist', async () => {
+    it('throws when the user does not exist', async () => {
       userModel.exists.mockResolvedValue(null);
 
       await expect(
-        service.exists('66c740862c2cb219f9b9ef11'),
-      ).resolves.toBeNull();
+        service.existsOrThrow('66c740862c2cb219f9b9ef11'),
+      ).rejects.toEqual(new NotFoundException('User not found'));
     });
 
     it('propagates user-query failures', async () => {
       const error = new Error('Failed to query user');
       userModel.exists.mockRejectedValue(error);
 
-      await expect(service.exists('66c740862c2cb219f9b9ef11')).rejects.toBe(
-        error,
-      );
+      await expect(
+        service.existsOrThrow('66c740862c2cb219f9b9ef11'),
+      ).rejects.toBe(error);
     });
   });
 });
