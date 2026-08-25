@@ -10,6 +10,7 @@ export class PurchaseCompletedListener {
 
   @OnEvent(EventName.PurchaseCompleted)
   async handle(event: PurchaseCompletedEvent): Promise<void> {
+    // console.log('PurchaseCompletedListener', event);
     await this.achievementService.evaluatePurchaseAchievements(event.userId);
   }
 }

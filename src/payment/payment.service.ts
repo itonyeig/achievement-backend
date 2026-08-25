@@ -136,6 +136,7 @@ export class PaymentService {
   }
 
   async processWebhook(event: PaystackWebhookEvent): Promise<void> {
+    console.log('payment processWebhook hit');
     let status: CashbackStatus;
 
     switch (event.event) {

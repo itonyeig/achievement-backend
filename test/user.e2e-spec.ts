@@ -17,6 +17,7 @@ describe('UserController (e2e)', () => {
   let app: INestApplication<App>;
   const userService = {
     createUser: jest.fn(),
+    getAchievements: jest.fn(),
   };
   const validCreateUserBody = {
     name: 'Jane Doe',
@@ -166,5 +167,143 @@ describe('UserController (e2e)', () => {
       .post('/api/v1/user/bank-account/resolve')
       .send({ accountNumber: '0000000000', bankCode: '057' })
       .expect(404);
+  });
+
+  describe('GET /api/v1/users/:user/achievements', () => {
+    const userId = '66c740862c2cb219f9b9ef11';
+
+    it('returns progress when no achievements have been unlocked', async () => {
+      const progress = {
+        unlocked_achievements: [],
+        next_available_achievements: ['First Purchase'],
+        current_badge: null,
+        next_badge: 'Advanced',
+        remaining_to_unlock_next_badge: 8,
+      };
+      userService.getAchievements.mockResolvedValue(progress);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/users/${userId}/achievements`)
+        .expect(200)
+        .expect({
+          success: true,
+          statusCode: 200,
+          message: 'Request was successful',
+          data: progress,
+        });
+
+      expect(userService.getAchievements).toHaveBeenCalledWith(userId);
+    });
+
+    it('returns the next achievement and remaining badge progress', async () => {
+      const progress = {
+        unlocked_achievements: [
+          'First Purchase',
+          '5 Purchases',
+          '10 Purchases',
+          '15 Purchases',
+          '20 Purchases',
+        ],
+        next_available_achievements: ['25 Purchases'],
+        current_badge: null,
+        next_badge: 'Advanced',
+        remaining_to_unlock_next_badge: 3,
+      };
+      userService.getAchievements.mockResolvedValue(progress);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/users/${userId}/achievements`)
+        .expect(200)
+        .expect({
+          success: true,
+          statusCode: 200,
+          message: 'Request was successful',
+          data: progress,
+        });
+    });
+
+    it('returns Advanced as current after it is unlocked', async () => {
+      const progress = {
+        unlocked_achievements: [
+          'First Purchase',
+          '5 Purchases',
+          '10 Purchases',
+          '15 Purchases',
+          '20 Purchases',
+          '25 Purchases',
+          '30 Purchases',
+          '35 Purchases',
+        ],
+        next_available_achievements: [],
+        current_badge: 'Advanced',
+        next_badge: null,
+        remaining_to_unlock_next_badge: 0,
+      };
+      userService.getAchievements.mockResolvedValue(progress);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/users/${userId}/achievements`)
+        .expect(200)
+        .expect({
+          success: true,
+          statusCode: 200,
+          message: 'Request was successful',
+          data: progress,
+        });
+    });
+
+    it.each(['not-a-mongo-id', '123'])(
+      'rejects the invalid user ID %s',
+      async (id) => {
+        await request(app.getHttpServer())
+          .get(`/api/v1/users/${id}/achievements`)
+          .expect(400)
+          .expect((response: request.Response) => {
+            expect(response.body).toEqual(
+              expect.objectContaining({ success: false, statusCode: 400 }),
+            );
+          });
+
+        expect(userService.getAchievements).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns not found when the user does not exist', async () => {
+      userService.getAchievements.mockRejectedValue(
+        new HttpException('User not found', 404),
+      );
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/users/${userId}/achievements`)
+        .expect(404)
+        .expect({
+          success: false,
+          statusCode: 404,
+          error: 'HttpException',
+          message: 'User not found',
+        });
+    });
+
+    it('formats progress-query failures as internal server errors', async () => {
+      userService.getAchievements.mockRejectedValue(
+        new Error('Failed to query progress'),
+      );
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/users/${userId}/achievements`)
+        .expect(500)
+        .expect({
+          success: false,
+          statusCode: 500,
+          error: 'Internal Server Error',
+          message: 'An unexpected error occurred',
+        });
+    });
+
+    it('does not expose the progress endpoint under the singular user route', async () => {
+      await request(app.getHttpServer())
+        .get(`/api/v1/user/${userId}/achievements`)
+        .expect(404);
+    });
   });
 });

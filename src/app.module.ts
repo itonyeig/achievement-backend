@@ -6,7 +6,6 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AchievementModule } from './achievement/achievement.module';
-import { BadgeModule } from './badge/badge.module';
 import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
 import { PaymentModule } from './payment/payment.module';
@@ -31,7 +30,6 @@ import { PurchaseModule } from './purchase/purchase.module';
     ProductModule,
     PurchaseModule,
     AchievementModule,
-    BadgeModule,
   ],
   controllers: [AppController],
   providers: [

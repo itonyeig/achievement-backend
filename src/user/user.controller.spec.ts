@@ -7,6 +7,7 @@ describe('UserController', () => {
   let controller: UserController;
   const userService = {
     createUser: jest.fn(),
+    getAchievements: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -53,6 +54,32 @@ describe('UserController', () => {
         name: 'Jane Doe',
         email: 'jane@example.com',
       }),
+    ).rejects.toBe(error);
+  });
+
+  it('gets achievement progress through the user service', async () => {
+    const userId = '66c740862c2cb219f9b9ef11';
+    const progress = {
+      unlocked_achievements: ['First Purchase'],
+      next_available_achievements: ['5 Purchases'],
+      current_badge: null,
+      next_badge: 'Advanced',
+      remaining_to_unlock_next_badge: 7,
+    };
+    userService.getAchievements.mockResolvedValue(progress);
+
+    await expect(controller.getAchievements({ user: userId })).resolves.toEqual(
+      progress,
+    );
+    expect(userService.getAchievements).toHaveBeenCalledWith(userId);
+  });
+
+  it('propagates achievement-progress failures', async () => {
+    const error = new Error('Failed to query progress');
+    userService.getAchievements.mockRejectedValue(error);
+
+    await expect(
+      controller.getAchievements({ user: '66c740862c2cb219f9b9ef11' }),
     ).rejects.toBe(error);
   });
 });
