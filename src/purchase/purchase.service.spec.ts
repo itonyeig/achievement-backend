@@ -1,32 +1,42 @@
 import { NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { Product } from '../product/schema/product.schema';
-import { User } from '../user/schema/user.schema';
+import { Types } from 'mongoose';
+import { EventName } from '../common/enums/event-name.enum';
+import { ProductService } from '../product/product.service';
+import { UserService } from '../user/user.service';
+import { PurchaseCompletedEvent } from './events/purchase-completed.event';
 import { Purchase } from './schema/purchase.schema';
 import { PurchaseService } from './purchase.service';
 
 describe('PurchaseService', () => {
   let service: PurchaseService;
-  const userModel = {
+  let emittedEvent: PurchaseCompletedEvent | undefined;
+  const userService = {
     exists: jest.fn(),
   };
-  const productLookup = {
-    exec: jest.fn(),
-  };
-  const productModel = {
+  const productService = {
     findById: jest.fn(),
   };
   const purchaseModel = {
     create: jest.fn(),
   };
+  const eventEmitter = {
+    emit: jest.fn<
+      (eventName: string, event: PurchaseCompletedEvent) => boolean
+    >((_eventName: string, event: PurchaseCompletedEvent) => {
+      emittedEvent = event;
+      return true;
+    }),
+  };
   const params = {
     productId: '66c740862c2cb219f9b9ef11',
     userId: '66c740862c2cb219f9b9ef12',
   };
-  const productId = {
-    toString: () => params.productId,
-  };
+  const purchaseId = new Types.ObjectId('66c740862c2cb219f9b9ef13');
+  const productId = new Types.ObjectId(params.productId);
+  const userId = new Types.ObjectId(params.userId);
   const createdAt = new Date('2026-08-25T10:00:00.000Z');
   const updatedAt = new Date('2026-08-25T10:00:01.000Z');
 
@@ -39,31 +49,35 @@ describe('PurchaseService', () => {
           useValue: purchaseModel,
         },
         {
-          provide: getModelToken(User.name),
-          useValue: userModel,
+          provide: UserService,
+          useValue: userService,
         },
         {
-          provide: getModelToken(Product.name),
-          useValue: productModel,
+          provide: ProductService,
+          useValue: productService,
+        },
+        {
+          provide: EventEmitter2,
+          useValue: eventEmitter,
         },
       ],
     }).compile();
 
     service = module.get<PurchaseService>(PurchaseService);
     jest.clearAllMocks();
-    productModel.findById.mockReturnValue(productLookup);
+    emittedEvent = undefined;
   });
 
   it('validates the user and product before persisting the stored product price', async () => {
-    userModel.exists.mockResolvedValue({ _id: params.userId });
-    productLookup.exec.mockResolvedValue({
+    userService.exists.mockResolvedValue({ _id: params.userId });
+    productService.findById.mockResolvedValue({
       _id: productId,
       name: 'Wireless Mouse',
       price: 12000,
     });
     purchaseModel.create.mockResolvedValue({
-      _id: { toString: () => '66c740862c2cb219f9b9ef13' },
-      userId: { toString: () => params.userId },
+      _id: purchaseId,
+      userId,
       productId,
       totalAmount: 12000,
       createdAt,
@@ -71,32 +85,42 @@ describe('PurchaseService', () => {
     });
 
     await expect(service.createPurchase(params)).resolves.toEqual({
-      id: '66c740862c2cb219f9b9ef13',
-      userId: params.userId,
-      productId: params.productId,
+      _id: purchaseId,
+      userId,
+      productId,
       totalAmount: 12000,
       createdAt,
       updatedAt,
     });
-    expect(userModel.exists).toHaveBeenCalledWith({ _id: params.userId });
-    expect(productModel.findById).toHaveBeenCalledWith(params.productId);
-    expect(productLookup.exec).toHaveBeenCalledTimes(1);
+    expect(userService.exists).toHaveBeenCalledWith(params.userId);
+    expect(productService.findById).toHaveBeenCalledWith(params.productId);
     expect(purchaseModel.create).toHaveBeenCalledWith({
       userId: params.userId,
       productId,
       totalAmount: 12000,
     });
+    expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      EventName.PurchaseCompleted,
+      new PurchaseCompletedEvent(userId),
+    );
+
+    expect(emittedEvent).toBeInstanceOf(PurchaseCompletedEvent);
+    expect(Object.keys(emittedEvent ?? {})).toEqual(['userId']);
+    expect(purchaseModel.create.mock.invocationCallOrder[0]).toBeLessThan(
+      eventEmitter.emit.mock.invocationCallOrder[0],
+    );
   });
 
   it('always calculates the total from the latest stored product price', async () => {
-    userModel.exists.mockResolvedValue({ _id: params.userId });
-    productLookup.exec.mockResolvedValue({
+    userService.exists.mockResolvedValue({ _id: params.userId });
+    productService.findById.mockResolvedValue({
       _id: productId,
       price: 65000,
     });
     purchaseModel.create.mockResolvedValue({
-      _id: { toString: () => '66c740862c2cb219f9b9ef13' },
-      userId: { toString: () => params.userId },
+      _id: purchaseId,
+      userId,
       productId,
       totalAmount: 65000,
       createdAt,
@@ -112,52 +136,59 @@ describe('PurchaseService', () => {
   });
 
   it('rejects a missing user without querying or persisting a product', async () => {
-    userModel.exists.mockResolvedValue(null);
+    userService.exists.mockResolvedValue(null);
 
     await expect(service.createPurchase(params)).rejects.toEqual(
       new NotFoundException('User not found'),
     );
-    expect(productModel.findById).not.toHaveBeenCalled();
+    expect(productService.findById).not.toHaveBeenCalled();
     expect(purchaseModel.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
   it('rejects a missing product without persisting a purchase', async () => {
-    userModel.exists.mockResolvedValue({ _id: params.userId });
-    productLookup.exec.mockResolvedValue(null);
+    userService.exists.mockResolvedValue({ _id: params.userId });
+    productService.findById.mockRejectedValue(
+      new NotFoundException('Product not found'),
+    );
 
     await expect(service.createPurchase(params)).rejects.toEqual(
       new NotFoundException('Product not found'),
     );
     expect(purchaseModel.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
   it('propagates user-query failures without continuing', async () => {
     const error = new Error('Failed to query user');
-    userModel.exists.mockRejectedValue(error);
+    userService.exists.mockRejectedValue(error);
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
-    expect(productModel.findById).not.toHaveBeenCalled();
+    expect(productService.findById).not.toHaveBeenCalled();
     expect(purchaseModel.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
   it('propagates product-query failures without persisting', async () => {
     const error = new Error('Failed to query product');
-    userModel.exists.mockResolvedValue({ _id: params.userId });
-    productLookup.exec.mockRejectedValue(error);
+    userService.exists.mockResolvedValue({ _id: params.userId });
+    productService.findById.mockRejectedValue(error);
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
     expect(purchaseModel.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
   it('propagates purchase-persistence failures', async () => {
     const error = new Error('Failed to persist purchase');
-    userModel.exists.mockResolvedValue({ _id: params.userId });
-    productLookup.exec.mockResolvedValue({
+    userService.exists.mockResolvedValue({ _id: params.userId });
+    productService.findById.mockResolvedValue({
       _id: productId,
       price: 12000,
     });
     purchaseModel.create.mockRejectedValue(error);
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 });

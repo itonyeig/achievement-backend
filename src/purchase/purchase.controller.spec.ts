@@ -30,7 +30,7 @@ describe('PurchaseController', () => {
 
   it('records a purchase through the purchase service', async () => {
     const purchase = {
-      id: '66c740862c2cb219f9b9ef13',
+      _id: '66c740862c2cb219f9b9ef13',
       ...params,
       totalAmount: 12000,
       createdAt: new Date('2026-08-25T10:00:00.000Z'),

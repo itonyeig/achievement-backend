@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ProductService } from './product.service';
@@ -6,10 +7,14 @@ import { Product } from './schema/product.schema';
 describe('ProductService', () => {
   let service: ProductService;
   const lean = jest.fn();
+  const findById = {
+    lean: jest.fn(),
+  };
   const productModel = {
     countDocuments: jest.fn(),
     insertMany: jest.fn(),
     find: jest.fn(),
+    findById: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -26,6 +31,7 @@ describe('ProductService', () => {
     service = module.get<ProductService>(ProductService);
     jest.clearAllMocks();
     productModel.find.mockReturnValue({ lean });
+    productModel.findById.mockReturnValue(findById);
   });
 
   describe('onModuleInit', () => {
@@ -97,7 +103,7 @@ describe('ProductService', () => {
 
       await expect(service.getProducts()).resolves.toEqual(products);
       expect(productModel.find).toHaveBeenCalledTimes(1);
-      expect(productModel.find).toHaveBeenCalledWith();
+      expect(productModel.find).toHaveBeenCalledWith({}, '-__v');
       expect(lean).toHaveBeenCalledTimes(1);
     });
 
@@ -112,6 +118,39 @@ describe('ProductService', () => {
       lean.mockRejectedValue(error);
 
       await expect(service.getProducts()).rejects.toBe(error);
+    });
+  });
+
+  describe('findById', () => {
+    it('returns the requested product', async () => {
+      const productId = '66c740862c2cb219f9b9ef11';
+      const product = {
+        _id: productId,
+        name: 'Wireless Mouse',
+        price: 12000,
+      };
+      findById.lean.mockResolvedValue(product);
+
+      await expect(service.findById(productId)).resolves.toBe(product);
+      expect(productModel.findById).toHaveBeenCalledWith(productId, '-__v');
+      expect(findById.lean).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws when the product does not exist', async () => {
+      findById.lean.mockResolvedValue(null);
+
+      await expect(
+        service.findById('66c740862c2cb219f9b9ef11'),
+      ).rejects.toEqual(new NotFoundException('Product not found'));
+    });
+
+    it('propagates product-query failures', async () => {
+      const error = new Error('Failed to query product');
+      findById.lean.mockRejectedValue(error);
+
+      await expect(service.findById('66c740862c2cb219f9b9ef11')).rejects.toBe(
+        error,
+      );
     });
   });
 });

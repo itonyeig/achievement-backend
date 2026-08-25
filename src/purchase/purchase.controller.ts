@@ -36,7 +36,7 @@ export class PurchaseController {
         statusCode: 201,
         message: 'Request was successful',
         data: {
-          id: '66c740862c2cb219f9b9ef13',
+          _id: '6a8d45bac8c95f7edd6c9ab6',
           userId: '66c740862c2cb219f9b9ef12',
           productId: '66c740862c2cb219f9b9ef11',
           totalAmount: 12000,

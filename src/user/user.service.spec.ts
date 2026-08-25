@@ -8,6 +8,7 @@ describe('UserService', () => {
   let service: UserService;
   const userModel = {
     create: jest.fn(),
+    exists: jest.fn(),
   };
   const paymentService = {
     createTransferRecipient: jest.fn(),
@@ -70,7 +71,7 @@ describe('UserService', () => {
       recipientCode: 'RCP_example',
     });
     expect(result).toEqual({
-      id: '66c740862c2cb219f9b9ef11',
+      _id: '66c740862c2cb219f9b9ef11',
       name: 'Jane Doe',
       email: 'jane@example.com',
       accountNumber: '0000000000',
@@ -131,5 +132,33 @@ describe('UserService', () => {
     await expect(service.createUser(createUserDto)).rejects.toBe(
       duplicateEmailError,
     );
+  });
+
+  describe('exists', () => {
+    it('returns the matching user identifier', async () => {
+      const userId = '66c740862c2cb219f9b9ef11';
+      const existingUser = { _id: userId };
+      userModel.exists.mockResolvedValue(existingUser);
+
+      await expect(service.exists(userId)).resolves.toBe(existingUser);
+      expect(userModel.exists).toHaveBeenCalledWith({ _id: userId });
+    });
+
+    it('returns null when the user does not exist', async () => {
+      userModel.exists.mockResolvedValue(null);
+
+      await expect(
+        service.exists('66c740862c2cb219f9b9ef11'),
+      ).resolves.toBeNull();
+    });
+
+    it('propagates user-query failures', async () => {
+      const error = new Error('Failed to query user');
+      userModel.exists.mockRejectedValue(error);
+
+      await expect(service.exists('66c740862c2cb219f9b9ef11')).rejects.toBe(
+        error,
+      );
+    });
   });
 });

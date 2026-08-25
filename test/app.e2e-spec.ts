@@ -29,20 +29,6 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')
       .expect(200)
-      .expect((response: request.Response) => {
-        const body: unknown = response.body;
-
-        expect(body).toEqual(
-          expect.objectContaining({
-            success: true,
-            statusCode: 200,
-            message: 'Request was successful',
-            data: expect.objectContaining({
-              status: 'ok',
-              message: 'Service is healthy',
-            }),
-          }),
-        );
-      });
+      .expect('OK');
   });
 });

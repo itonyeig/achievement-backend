@@ -1,6 +1,10 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Product } from './schema/product.schema';
 
 const SAMPLE_PRODUCTS: Array<Pick<Product, 'name' | 'price'>> = [
@@ -31,7 +35,17 @@ export class ProductService implements OnModuleInit {
   }
 
   async getProducts(): Promise<Product[]> {
-    const products = await this.productModel.find().lean();
+    const products = await this.productModel.find({}, '-__v').lean<Product[]>();
     return products;
+  }
+
+  async findById(productId: Types.ObjectId | string): Promise<Product> {
+    const product = await this.productModel
+      .findById(productId, '-__v')
+      .lean<Product>();
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+    return product;
   }
 }

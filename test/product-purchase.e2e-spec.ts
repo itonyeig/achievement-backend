@@ -127,7 +127,7 @@ describe('Product and Purchase endpoints (e2e)', () => {
   describe('POST /api/v1/purchases/:productId/:userId', () => {
     it('records a completed purchase and preserves the route parameter order', async () => {
       const purchase = {
-        id: '66c740862c2cb219f9b9ef13',
+        _id: '66c740862c2cb219f9b9ef13',
         productId,
         userId,
         totalAmount: 12000,

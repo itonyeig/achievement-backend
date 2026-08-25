@@ -27,7 +27,7 @@ export class UserController {
         statusCode: 201,
         message: 'Request was successful',
         data: {
-          id: '66c740862c2cb219f9b9ef11',
+          _id: '66c740862c2cb219f9b9ef11',
           name: 'Jane Doe',
           email: 'jane@example.com',
           accountNumber: '0000000000',

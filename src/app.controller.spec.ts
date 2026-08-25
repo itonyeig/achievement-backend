@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import type { Response } from 'express';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -15,14 +16,13 @@ describe('AppController', () => {
   });
 
   describe('health', () => {
-    it('should return the service health status', () => {
-      expect(appController.getHealth()).toEqual(
-        expect.objectContaining({
-          status: 'ok',
-          message: 'Service is healthy',
-          version: '0.0.1',
-        }),
-      );
+    it('should return an HTTP 200 status', () => {
+      const sendStatus = jest.fn();
+      const response = { sendStatus } as unknown as Response;
+
+      appController.getHealth(response);
+
+      expect(sendStatus).toHaveBeenCalledWith(200);
     });
   });
 });

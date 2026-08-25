@@ -19,7 +19,7 @@ export class ProductController {
         message: 'Request was successful',
         data: [
           {
-            id: '66c740862c2cb219f9b9ef11',
+            _id: '66c740862c2cb219f9b9ef11',
             name: 'Wireless Mouse',
             price: 12000,
             createdAt: '2026-08-25T10:00:00.000Z',

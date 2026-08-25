@@ -30,7 +30,7 @@ describe('UserController', () => {
       email: 'jane@example.com',
     };
     const user = {
-      id: '66c740862c2cb219f9b9ef11',
+      _id: '66c740862c2cb219f9b9ef11',
       ...dto,
       accountNumber: '0000000000',
       accountName: 'Jane Doe',

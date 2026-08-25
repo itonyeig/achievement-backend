@@ -26,7 +26,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (this.isDuplicateKeyError(exception)) {
       statusCode = HttpStatus.CONFLICT;
       error = 'Conflict';
-      message = 'A record with the same unique value already exists';
+      const keys = Object.keys(exception.keyValue ?? {});
+      message = keys.length
+        ? `A record with this ${keys.join(', ')} already exists`
+        : 'A record with the same unique value already exists';
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       error = exception.name;
@@ -60,7 +63,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     });
   }
 
-  private isDuplicateKeyError(value: unknown): value is { code: 11000 } {
+  private isDuplicateKeyError(
+    value: unknown,
+  ): value is { code: 11000; keyValue?: Record<string, unknown> } {
     return (
       typeof value === 'object' &&
       value !== null &&

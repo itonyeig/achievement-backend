@@ -58,7 +58,7 @@ describe('UserController (e2e)', () => {
 
   it('POST /api/v1/user creates a user without exposing the recipient code', async () => {
     const user = {
-      id: '66c740862c2cb219f9b9ef11',
+      _id: '66c740862c2cb219f9b9ef11',
       name: 'Jane Doe',
       email: 'jane@example.com',
       accountNumber: '0000000000',

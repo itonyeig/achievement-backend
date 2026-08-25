@@ -1,35 +1,35 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Product } from '../product/schema/product.schema';
-import { User } from '../user/schema/user.schema';
+import { EventName } from '../common/enums/event-name.enum';
+import { ProductService } from '../product/product.service';
+import { UserService } from '../user/user.service';
 import type { CreatePurchaseParamsDto } from './dto/create-purchase-params.dto';
+import { PurchaseCompletedEvent } from './events/purchase-completed.event';
 import type { PurchaseResponse } from './interfaces/purchase.interface';
-import { Purchase, type PurchaseDocument } from './schema/purchase.schema';
+import { Purchase } from './schema/purchase.schema';
 
 @Injectable()
 export class PurchaseService {
   constructor(
     @InjectModel(Purchase.name)
     private readonly purchaseModel: Model<Purchase>,
-    @InjectModel(User.name) private readonly userModel: Model<User>,
-    @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    private readonly userService: UserService,
+    private readonly productService: ProductService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async createPurchase(
     params: CreatePurchaseParamsDto,
   ): Promise<PurchaseResponse> {
-    const userExists = await this.userModel.exists({ _id: params.userId });
+    const userExists = await this.userService.exists(params.userId);
 
     if (!userExists) {
       throw new NotFoundException('User not found');
     }
 
-    const product = await this.productModel.findById(params.productId).exec();
-
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
+    const product = await this.productService.findById(params.productId);
 
     const purchase = await this.purchaseModel.create({
       userId: params.userId,
@@ -37,17 +37,11 @@ export class PurchaseService {
       totalAmount: product.price,
     });
 
-    return this.toPurchaseResponse(purchase);
-  }
+    this.eventEmitter.emit(
+      EventName.PurchaseCompleted,
+      new PurchaseCompletedEvent(purchase.userId),
+    );
 
-  private toPurchaseResponse(purchase: PurchaseDocument): PurchaseResponse {
-    return {
-      id: purchase._id.toString(),
-      userId: purchase.userId.toString(),
-      productId: purchase.productId.toString(),
-      totalAmount: purchase.totalAmount,
-      createdAt: purchase.createdAt,
-      updatedAt: purchase.updatedAt,
-    };
+    return purchase;
   }
 }

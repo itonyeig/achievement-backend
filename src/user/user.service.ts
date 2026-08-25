@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { PaymentService } from '../payment/payment.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UserResponse } from './interfaces/user.interface';
-import { User, type UserDocument } from './schema/user.schema';
+import { User, UserExists, type UserDocument } from './schema/user.schema';
 
 @Injectable()
 export class UserService {
@@ -33,9 +33,13 @@ export class UserService {
     return this.toUserResponse(user);
   }
 
+  async exists(userId: Types.ObjectId | string): Promise<UserExists> {
+    return await this.userModel.exists({ _id: userId });
+  }
+
   private toUserResponse(user: UserDocument): UserResponse {
     return {
-      id: user._id.toString(),
+      _id: user._id.toString(),
       name: user.name,
       email: user.email,
       accountNumber: user.accountNumber,
