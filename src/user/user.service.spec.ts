@@ -12,7 +12,10 @@ describe('UserService', () => {
   const userModel = {
     create: jest.fn(),
     exists: jest.fn(),
+    findById: jest.fn(),
   };
+  const userFindByIdExec = jest.fn();
+  const userFindByIdSelect = jest.fn(() => ({ exec: userFindByIdExec }));
   const userAchievementExec = jest.fn();
   const userAchievementLean = jest.fn(() => ({
     exec: userAchievementExec,
@@ -69,6 +72,7 @@ describe('UserService', () => {
     jest.clearAllMocks();
     userAchievementExec.mockResolvedValue([]);
     userBadgeExec.mockResolvedValue([]);
+    userModel.findById.mockReturnValue({ select: userFindByIdSelect });
   });
 
   it('creates a Paystack test recipient and persists the user', async () => {
@@ -188,6 +192,39 @@ describe('UserService', () => {
       await expect(
         service.existsOrThrow('66c740862c2cb219f9b9ef11'),
       ).rejects.toBe(error);
+    });
+  });
+
+  describe('findById', () => {
+    const userId = '66c740862c2cb219f9b9ef11';
+
+    it('returns the user with the payout recipient code selected', async () => {
+      const user = {
+        _id: userId,
+        name: 'Jane Doe',
+        recipientCode: 'RCP_example',
+      };
+      userFindByIdExec.mockResolvedValue(user);
+
+      await expect(service.findById(userId)).resolves.toBe(user);
+      expect(userModel.findById).toHaveBeenCalledWith(userId);
+      expect(userFindByIdSelect).toHaveBeenCalledWith('+recipientCode');
+      expect(userFindByIdExec).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws when the user does not exist', async () => {
+      userFindByIdExec.mockResolvedValue(null);
+
+      await expect(service.findById(userId)).rejects.toEqual(
+        new NotFoundException('User not found'),
+      );
+    });
+
+    it('propagates user-query failures', async () => {
+      const error = new Error('Failed to find user');
+      userFindByIdExec.mockRejectedValue(error);
+
+      await expect(service.findById(userId)).rejects.toBe(error);
     });
   });
 

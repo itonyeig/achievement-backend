@@ -1,98 +1,284 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Achievements API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+An event-driven NestJS backend for unlocking ecommerce achievements and badges
+and initiating a ₦300 Paystack cashback when a badge is earned.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Technology
 
-## Description
+- NestJS 11
+- TypeScript
+- MongoDB with Mongoose
+- `@nestjs/event-emitter`
+- Paystack Transfers API
+- Jest and Supertest
+- Swagger/OpenAPI
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Design overview
 
-## Project setup
+The application represents a purchase as an already completed ecommerce
+transaction. Persisting a purchase starts the achievement, badge, and cashback
+flow:
 
-```bash
-$ npm install
+```text
+POST /purchases/:productId/:userId
+        |
+        v
+Persist purchase using the stored product price
+        |
+        v
+purchase.completed { userId }
+        |
+        v
+Count the user's purchases and unlock an exact milestone
+        |
+        v
+achievement.unlocked { achievement_name, user }
+        |
+        v
+Count the user's achievements and unlock an eligible badge
+        |
+        v
+badge.unlocked { badge_name, user }
+        |
+        v
+Create a pending ₦300 cashback and initiate a Paystack transfer
+        |
+        v
+Paystack webhook marks the cashback completed or failed
 ```
 
-## Compile and run the project
+### Module responsibilities
 
-```bash
-# development
-$ npm run start
+- `UserModule` creates users and exposes their achievement and badge progress.
+- `ProductModule` owns the product catalogue and startup seed.
+- `PurchaseModule` records completed purchases and emits
+  `purchase.completed`.
+- `AchievementModule` processes achievements and badges and emits their events.
+- `PaymentModule` owns Paystack recipients, cashback transfers, and transfer
+  webhooks.
 
-# watch mode
-$ npm run start:dev
+Achievement and badge definitions are readonly configuration in code rather
+than database catalogue records. User unlocks are persisted by name in
+`user_achievements` and `user_badges`. Adding a definition to the ordered
+configuration makes it available to processing and progress responses without
+adding branching logic.
 
-# production mode
-$ npm run start:prod
+Unique indexes on user/achievement, user/badge, and user/badge-cashback pairs
+make event replays idempotent and prevent duplicate unlocks or payouts.
+
+## Assessment assumptions
+
+The assessment leaves some business rules unspecified. This implementation uses
+the following explicit assumptions:
+
+1. The assessment defines `First Purchase` and `5 Purchases`, but its
+   `Advanced` example requires eight unlocked achievements. The remaining six
+   purchase achievements are assumed to continue in increments of five:
+
+   | Purchase count | Achievement    |
+   | -------------: | -------------- |
+   |              1 | First Purchase |
+   |              5 | 5 Purchases    |
+   |             10 | 10 Purchases   |
+   |             15 | 15 Purchases   |
+   |             20 | 20 Purchases   |
+   |             25 | 25 Purchases   |
+   |             30 | 30 Purchases   |
+   |             35 | 35 Purchases   |
+
+2. All configured achievements belong to one implicit purchase group. Because
+   the assessment requires only the next available achievement from each group,
+   `next_available_achievements` currently contains at most one name.
+3. `Advanced` is the only badge named by the assessment. It is unlocked after
+   eight achievements. Before it is unlocked, `current_badge` is `null`; after
+   it is unlocked, `next_badge` is `null` because no later badge was specified.
+4. `POST /purchases/:productId/:userId` represents a completed purchase. Cart,
+   checkout, purchase payment, inventory, authentication, discounts, shipping,
+   and quantities are outside this assessment flow.
+5. A purchase contains one product. Its total is calculated from the current
+   product price stored in MongoDB; the client cannot provide the amount.
+6. Ten sample products are inserted at application startup only when the
+   products collection is empty.
+7. User creation uses Paystack's documented Nigerian test transfer details:
+   account number `0000000000` and Zenith Bank code `057`. The user's name is
+   used as the recipient account name.
+8. Cashback is initiated once, when a badge is newly persisted. It is recorded
+   as `pending` before calling Paystack and becomes `completed` or `failed` from
+   a signed transfer webhook.
+9. Paystack test mode simulates transfers and does not move real money.
+
+## Prerequisites
+
+- Node.js and npm
+- MongoDB
+- A Paystack test account and secret key
+- A public HTTPS tunnel such as ngrok when testing Paystack webhooks locally
+
+## Environment variables
+
+Create a `.env` file in the project root:
+
+```dotenv
+NODE_ENV=development
+PORT=4000
+MONGO_URI=mongodb://localhost:27017/achievements
+PAYSTACK_SECRET_KEY=sk_test_your_key
+PAYSTACK_BASE_URL=https://api.paystack.co
 ```
 
-## Run tests
+`PORT` defaults to `4000`, and `PAYSTACK_BASE_URL` defaults to Paystack's API
+URL. `NODE_ENV`, `MONGO_URI`, and `PAYSTACK_SECRET_KEY` are required.
+
+## Paystack setup
+
+1. Use a Paystack test secret key during local development.
+2. Disable transfer OTP in the Paystack dashboard. Automated badge cashback
+   transfers cannot complete while manual OTP finalization is required.
+3. Expose the application through a public HTTPS URL when running locally.
+4. Configure the following webhook URL in the Paystack dashboard:
+
+   ```text
+   https://<public-host>/api/v1/payment/webhook
+   ```
+
+The webhook validates the `x-paystack-signature` header and handles
+`transfer.success`, `transfer.failed`, and `transfer.reversed` events.
+
+## Installation and running locally
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
+npm run start:dev
 ```
 
-## Deployment
+The API is available at `http://localhost:4000/api/v1` by default.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Swagger documentation is available outside production at:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```text
+http://localhost:4000/docs/v1
+```
+
+For a production build:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run build
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Running with Docker Compose
 
-## Resources
+Set `PAYSTACK_SECRET_KEY` in the root `.env` file, then start the application
+and MongoDB together:
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+docker compose up --build
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Docker Compose waits for MongoDB to become healthy before starting the API. The
+application is available at `http://localhost:4000` by default, and MongoDB data
+is retained in the `mongodb_data` volume.
 
-## Support
+Stop the containers with:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+docker compose down
+```
 
-## Stay in touch
+## API endpoints
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+| Method | Endpoint                               | Purpose                                   |
+| ------ | -------------------------------------- | ----------------------------------------- |
+| `GET`  | `/api/v1/health`                       | Health check                              |
+| `POST` | `/api/v1/user`                         | Create a user and Paystack test recipient |
+| `GET`  | `/api/v1/products`                     | Return available products                 |
+| `POST` | `/api/v1/purchases/:productId/:userId` | Record a completed purchase               |
+| `GET`  | `/api/v1/users/:user/achievements`     | Return achievement and badge progress     |
+| `POST` | `/api/v1/payment/webhook`              | Receive signed Paystack transfer events   |
 
-## License
+### Create a user
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```http
+POST /api/v1/user
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com"
+}
+```
+
+### Record a purchase
+
+```http
+POST /api/v1/purchases/66c740862c2cb219f9b9ef11/66c740862c2cb219f9b9ef12
+```
+
+The first identifier is the product ID and the second is the user ID.
+
+### Get achievement progress
+
+```http
+GET /api/v1/users/66c740862c2cb219f9b9ef12/achievements
+```
+
+Example response before `Advanced` is unlocked:
+
+```json
+{
+  "success": true,
+  "message": "Request was successful",
+  "statusCode": 200,
+  "data": {
+    "unlocked_achievements": [
+      "First Purchase",
+      "5 Purchases",
+      "10 Purchases",
+      "15 Purchases",
+      "20 Purchases"
+    ],
+    "next_available_achievements": ["25 Purchases"],
+    "current_badge": null,
+    "next_badge": "Advanced",
+    "remaining_to_unlock_next_badge": 3
+  }
+}
+```
+
+## Testing
+
+Run the unit tests:
+
+```bash
+npm test
+```
+
+Run the endpoint and event integration tests:
+
+```bash
+npm run test:e2e
+```
+
+Generate the unit coverage report:
+
+```bash
+npm run test:cov
+```
+
+Run the linter and verify the production build:
+
+```bash
+npm run lint
+npm run build
+```
+
+The test suite covers DTO validation, controllers, services, schemas, exact
+achievement thresholds, event payloads and ordering, idempotency, Paystack
+errors, signature verification, cashback state transitions, and the complete
+event listener chain.
+
+## Intentional scope exclusions
+
+This assessment implementation does not include a cart, checkout flow, purchase
+payment processing, inventory management, authentication, discounts, shipping,
+or product quantities.

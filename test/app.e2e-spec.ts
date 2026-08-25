@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { API_PREFIX } from './../src/common/constants/app.constants';
+import { EventName } from './../src/common/enums/event-name.enum';
 import { configureApplication } from './../src/config/application.config';
 
 describe('AppController (e2e)', () => {
@@ -30,5 +32,13 @@ describe('AppController (e2e)', () => {
       .get('/api/v1/health')
       .expect(200)
       .expect('OK');
+  });
+
+  it('registers the complete purchase, achievement, badge, and cashback event chain', () => {
+    const eventEmitter = app.get(EventEmitter2);
+
+    expect(eventEmitter.listenerCount(EventName.PurchaseCompleted)).toBe(1);
+    expect(eventEmitter.listenerCount(EventName.AchievementUnlocked)).toBe(1);
+    expect(eventEmitter.listenerCount(EventName.BadgeUnlocked)).toBe(1);
   });
 });

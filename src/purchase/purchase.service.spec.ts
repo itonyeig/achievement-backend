@@ -21,6 +21,7 @@ describe('PurchaseService', () => {
   };
   const purchaseModel = {
     create: jest.fn(),
+    countDocuments: jest.fn(),
   };
   const eventEmitter = {
     emit: jest.fn<
@@ -192,5 +193,21 @@ describe('PurchaseService', () => {
 
     await expect(service.createPurchase(params)).rejects.toBe(error);
     expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  describe('countByUserId', () => {
+    it('counts purchases belonging to the requested user', async () => {
+      purchaseModel.countDocuments.mockResolvedValue(5);
+
+      await expect(service.countByUserId(userId)).resolves.toBe(5);
+      expect(purchaseModel.countDocuments).toHaveBeenCalledWith({ userId });
+    });
+
+    it('propagates purchase-count failures', async () => {
+      const error = new Error('Failed to count purchases');
+      purchaseModel.countDocuments.mockRejectedValue(error);
+
+      await expect(service.countByUserId(userId)).rejects.toBe(error);
+    });
   });
 });
