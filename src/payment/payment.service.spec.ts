@@ -11,9 +11,8 @@ describe('PaymentService', () => {
   let service: PaymentService;
   let axiosCreateSpy: jest.SpiedFunction<typeof axios.create>;
 
-  const get = jest.fn();
   const post = jest.fn();
-  const axiosInstance = { get, post } as unknown as AxiosInstance;
+  const axiosInstance = { post } as unknown as AxiosInstance;
   const configService = {
     get: jest.fn().mockReturnValue('https://paystack.test'),
     getOrThrow: jest.fn().mockReturnValue('sk_test_secret'),
@@ -71,115 +70,14 @@ describe('PaymentService', () => {
     });
   });
 
-  describe('getSupportedBanks', () => {
-    it('returns only bank names and codes for Nigerian NGN banks', async () => {
-      get.mockResolvedValue({
-        data: {
-          status: true,
-          message: 'Banks retrieved',
-          data: [
-            { name: 'Access Bank', code: '044', slug: 'access-bank' },
-            { name: 'Guaranty Trust Bank', code: '058', slug: 'gtbank' },
-          ],
-        },
-      });
-
-      await expect(service.getSupportedBanks()).resolves.toEqual([
-        { name: 'Access Bank', code: '044' },
-        { name: 'Guaranty Trust Bank', code: '058' },
-      ]);
-      expect(get).toHaveBeenCalledWith('/bank', {
-        params: { country: 'nigeria', currency: 'NGN' },
-      });
-    });
-
-    it('returns an empty array when Paystack has no supported banks', async () => {
-      get.mockResolvedValue({
-        data: { status: true, message: 'Banks retrieved', data: [] },
-      });
-
-      await expect(service.getSupportedBanks()).resolves.toEqual([]);
-    });
-
-    it('preserves useful Paystack client errors', async () => {
-      get.mockRejectedValue(
-        createAxiosError(401, 'Invalid Paystack credentials'),
-      );
-
-      await expectHttpException(
-        service.getSupportedBanks(),
-        401,
-        'Invalid Paystack credentials',
-      );
-    });
-
-    it('returns a bad gateway error for malformed successful responses', async () => {
-      get.mockResolvedValue({ data: { status: true } });
-
-      await expect(service.getSupportedBanks()).rejects.toThrow(
-        new BadGatewayException('Failed to retrieve supported banks'),
-      );
-    });
-  });
-
-  describe('resolveBankAccount', () => {
-    it('returns normalized resolved account details', async () => {
-      get.mockResolvedValue({
-        data: {
-          status: true,
-          message: 'Account number resolved',
-          data: {
-            account_number: '0123456789',
-            account_name: 'Jane Doe',
-            bank_id: 9,
-          },
-        },
-      });
-
-      await expect(
-        service.resolveBankAccount('0123456789', '058'),
-      ).resolves.toEqual({
-        accountNumber: '0123456789',
-        accountName: 'Jane Doe',
-        bankCode: '058',
-      });
-      expect(get).toHaveBeenCalledWith('/bank/resolve', {
-        params: {
-          account_number: '0123456789',
-          bank_code: '058',
-        },
-      });
-    });
-
-    it('uses the operation fallback when Paystack omits a client-error message', async () => {
-      get.mockRejectedValue(createAxiosError(422));
-
-      await expectHttpException(
-        service.resolveBankAccount('0123456789', '058'),
-        422,
-        'Failed to resolve bank account',
-      );
-    });
-
-    it('returns a bad gateway error for network failures', async () => {
-      get.mockRejectedValue(createAxiosError());
-
-      await expect(
-        service.resolveBankAccount('0123456789', '058'),
-      ).rejects.toThrow(
-        new BadGatewayException('Failed to resolve bank account'),
-      );
-    });
-  });
-
   describe('createTransferRecipient', () => {
-    const account = {
-      accountNumber: '0123456789',
+    const testRecipient = {
+      accountNumber: '0000000000',
       accountName: 'Jane Doe',
-      bankCode: '058',
+      bankCode: '057',
     };
 
-    it('creates a Nigerian NUBAN recipient and returns its code', async () => {
+    it('creates the documented Nigerian test recipient and returns its code', async () => {
       post.mockResolvedValue({
         data: {
           status: true,
@@ -188,32 +86,54 @@ describe('PaymentService', () => {
         },
       });
 
-      await expect(service.createTransferRecipient(account)).resolves.toEqual({
-        recipientCode: 'RCP_example',
-      });
+      await expect(
+        service.createTransferRecipient(testRecipient),
+      ).resolves.toEqual({ recipientCode: 'RCP_example' });
       expect(post).toHaveBeenCalledWith('/transferrecipient', {
         type: 'nuban',
         name: 'Jane Doe',
-        account_number: '0123456789',
-        bank_code: '058',
+        account_number: '0000000000',
+        bank_code: '057',
         currency: 'NGN',
       });
     });
 
     it('preserves transfer-recipient client errors', async () => {
-      post.mockRejectedValue(createAxiosError(400, 'Invalid bank code'));
+      post.mockRejectedValue(createAxiosError(400, 'Cannot resolve account'));
 
       await expectHttpException(
-        service.createTransferRecipient(account),
+        service.createTransferRecipient(testRecipient),
         400,
-        'Invalid bank code',
+        'Cannot resolve account',
+      );
+    });
+
+    it('uses the operation fallback when a client error has no message', async () => {
+      post.mockRejectedValue(createAxiosError(422));
+
+      await expectHttpException(
+        service.createTransferRecipient(testRecipient),
+        422,
+        'Failed to create transfer recipient',
       );
     });
 
     it('returns a bad gateway error for Paystack server failures', async () => {
       post.mockRejectedValue(createAxiosError(500, 'Paystack unavailable'));
 
-      await expect(service.createTransferRecipient(account)).rejects.toThrow(
+      await expect(
+        service.createTransferRecipient(testRecipient),
+      ).rejects.toThrow(
+        new BadGatewayException('Failed to create transfer recipient'),
+      );
+    });
+
+    it('returns a bad gateway error for network failures', async () => {
+      post.mockRejectedValue(createAxiosError());
+
+      await expect(
+        service.createTransferRecipient(testRecipient),
+      ).rejects.toThrow(
         new BadGatewayException('Failed to create transfer recipient'),
       );
     });
@@ -221,7 +141,9 @@ describe('PaymentService', () => {
     it('returns a bad gateway error for unexpected failures', async () => {
       post.mockRejectedValue(new Error('Unexpected failure'));
 
-      await expect(service.createTransferRecipient(account)).rejects.toThrow(
+      await expect(
+        service.createTransferRecipient(testRecipient),
+      ).rejects.toThrow(
         new BadGatewayException('Failed to create transfer recipient'),
       );
     });
